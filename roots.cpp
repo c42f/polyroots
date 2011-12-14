@@ -4,37 +4,6 @@
 #include <limits>
 #include <iostream>
 
-#if 1
-
-#include "dcomplexSSE.h"
-
-typedef dcomplexSSE complex;
-
-double evaluate(complex poly, complex* zpows, int n)
-{
-    // Unrolled a few times for speed.
-    if(n < 3)
-    {
-        __m128d w = _mm_min_sd(
-            _mm_min_sd(_mm_min_sd(norm2sse(poly + zpows[0] + zpows[1] + zpows[2]),
-                                  norm2sse(poly + zpows[0] + zpows[1] - zpows[2])),
-                       _mm_min_sd(norm2sse(poly + zpows[0] - zpows[1] + zpows[2]),
-                                  norm2sse(poly + zpows[0] - zpows[1] - zpows[2]))),
-            _mm_min_sd(_mm_min_sd(norm2sse(poly - zpows[0] + zpows[1] + zpows[2]),
-                                  norm2sse(poly - zpows[0] + zpows[1] - zpows[2])),
-                       _mm_min_sd(norm2sse(poly - zpows[0] - zpows[1] + zpows[2]),
-                                  norm2sse(poly - zpows[0] - zpows[1] - zpows[2])))
-        );
-        double res[2];
-        _mm_storeu_pd(res, w);
-        return res[0];
-    }
-    else
-        return std::min(evaluate(poly + *zpows, zpows+1, n-1),
-                        evaluate(poly - *zpows, zpows+1, n-1));
-}
-#else
-
 typedef std::complex<double> complex;
 
 inline double norm2(std::complex<double> z)
@@ -45,28 +14,25 @@ inline double norm2(std::complex<double> z)
 
 double evaluate(complex poly, complex* zpows, int n)
 {
+    using std::min;
 //    if(n < 0)
 //        return norm2(poly);
     // Unrolled a few times for speed.
     if(n < 3)
     {
-        return std::min(
-            std::min(std::min(norm2(poly + zpows[0] + zpows[1] + zpows[2]),
-                              norm2(poly + zpows[0] + zpows[1] - zpows[2])),
-                     std::min(norm2(poly + zpows[0] - zpows[1] + zpows[2]),
-                              norm2(poly + zpows[0] - zpows[1] - zpows[2]))),
-            std::min(std::min(norm2(poly - zpows[0] + zpows[1] + zpows[2]),
-                              norm2(poly - zpows[0] + zpows[1] - zpows[2])),
-                     std::min(norm2(poly - zpows[0] - zpows[1] + zpows[2]),
-                              norm2(poly - zpows[0] - zpows[1] - zpows[2])))
-        );
+        return min(min(min(norm2(poly + zpows[0] + zpows[1] + zpows[2]),
+                           norm2(poly + zpows[0] + zpows[1] - zpows[2])),
+                       min(norm2(poly + zpows[0] - zpows[1] + zpows[2]),
+                           norm2(poly + zpows[0] - zpows[1] - zpows[2]))),
+                   min(min(norm2(poly - zpows[0] + zpows[1] + zpows[2]),
+                           norm2(poly - zpows[0] + zpows[1] - zpows[2])),
+                       min(norm2(poly - zpows[0] - zpows[1] + zpows[2]),
+                           norm2(poly - zpows[0] - zpows[1] - zpows[2]))));
     }
     else
-        return std::min(evaluate(poly + *zpows, zpows+1, n-1),
-                        evaluate(poly - *zpows, zpows+1, n-1));
+        return min(evaluate(poly + *zpows, zpows+1, n-1),
+                   evaluate(poly - *zpows, zpows+1, n-1));
 }
-
-#endif
 
 
 int main()
@@ -76,7 +42,7 @@ int main()
     const double R0 = 0;
 //    const double R = 0.2;
 //    const double R0 = 0.4;
-    const int N = 4000;
+    const int N = 200;
     double* result = new double[N*N];
 
 #   pragma omp parallel for
@@ -89,11 +55,12 @@ int main()
             double y = R0 + R * (j + 0.5)/N;
             complex z(x,y);
             complex zpowers[degree+1];
-            zpowers[0] = 1.0;
-            for(int k = 1; k <= degree; ++k)
-                zpowers[k] = z*zpowers[k-1];
+            for(int k = 0; k <= degree; ++k)
+                zpowers[k] = pow(z, k);
             // Accumulate all terms; there are 2^degree of them!
-            result[N*j + i] = sqrt(evaluate(0, zpowers, degree));
+            double minpoly = evaluate(0, zpowers, degree);
+            // Weight of 1/|z|^degree implies z <--> 1/z symmetry
+            result[N*j + i] = sqrt(minpoly / pow(abs(z),degree));
         }
     }
 

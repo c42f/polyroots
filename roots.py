@@ -20,20 +20,33 @@ def makeDomain(R, npoints):
     x,y = meshgrid(x1, x1)
     return x + 1j*y
 
-def defaultAccumulator(accum, poly):
-    fmin(accum, abs(poly), accum)
+class MinAccumulator:
+    def __init__(self, z):
+        self.acc = 1000*ones(z.shape)
+    def accumulate(self, poly):
+        fmin(self.acc, absolute(poly), self.acc)
+    def result(self, z, degree):
+        return self.acc*abs(z)**(-degree/2)
+
+class SjoerdAccumulator:
+    def __init__(self, z):
+        self.acc = zeros(z.shape)
+    def accumulate(self, poly):
+        add(self.acc, absolute(poly)**-4, self.acc)
+    def result(self, z, degree):
+        return self.acc*abs(z)**(2*degree)
 
 # Render roots with Sjoerd Visscher's direct evaluation algorithm
-def genfrac(degree, z, accumFunc=defaultAccumulator):
+def genfrac(degree, z, accumClass=MinAccumulator, coeffSet=(-1,1)):
     N = degree + 1
     zPows = [z**i for i in range(0,N)]
-    acc = 1000 + 0*zeros(z.shape)
-    for coeffs in setCartesianPower((-1,1), N):
+    acc = accumClass(z)
+    for coeffs in setCartesianPower(coeffSet, N):
         p = 0
         for zpow,c in zip(zPows,coeffs):
             p += c*zpow
-        accumFunc(acc, p)
-    return acc
+        acc.accumulate(p)
+    return acc.result(z, degree)
 
 def assembleSym(F):
     F1 = concatenate((fliplr(F), F), axis=1)
