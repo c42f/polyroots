@@ -81,4 +81,5 @@ def evalCmap(cmap, F, vmin=None, vmax=None):
 ##imshow(F**0.1, cmap=cm.gist_heat_r, origin='lower', vmin=0.5)
 #imshow(F**0.1, cmap=cm.gist_heat_r, origin='lower', vmin=0.5,
 #       extent=extent, interpolation='nearest')
+#imshow(F**0.01, cmap=cm.gist_heat_r, origin='lower', vmin=0.95,vmax=1.1)
 #show()

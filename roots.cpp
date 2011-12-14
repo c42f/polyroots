@@ -38,23 +38,35 @@ double evaluate(complex poly, complex* zpows, int n)
 
 int main()
 {
-    const int degree = 16;
-    const double R = 1.6;
+    bool usePolar = false;
+
+    const int degree = 13;
+    const double R = 1.7;
     const double R0 = 0;
 //    const double R = 0.2;
 //    const double R0 = 0.4;
-    const int N = 200;
-    double* result = new double[N*N];
+    const int N = 1000;
+    int M = N;
+    if(usePolar)
+        M = int(N * (R-1)/M_PI_2);
+
+    double* result = new double[N*M];
 
 #   pragma omp parallel for
-    for(int j = 0; j < N; ++j)
+    for(int j = 0; j < M; ++j)
     {
         for(int i = 0; i < N; ++i)
         {
             // Calculate powers of z for current point
-            double x = R0 + R * (i + 0.5)/N;
-            double y = R0 + R * (j + 0.5)/N;
-            complex z(x,y);
+            complex z;
+            if(usePolar)
+            {
+                double t = M_PI_2 * (i + 0.5)/N;
+                double r = 1 + (R-1) * (j + 0.5)/M;
+                z = complex(r*cos(t), r*sin(t));
+            }
+            else
+                z = complex(R0 + R * (i + 0.5)/N, R0 + R * (j + 0.5)/M);
             complex zpowers[degree+1];
             for(int k = 0; k <= degree; ++k)
                 zpowers[k] = pow(z, k);
@@ -66,8 +78,8 @@ int main()
     }
 
     // Output numbers to stdout with a single thread.
-    ofstream outFile("data.txt");
-    for(int j = 0; j < N; ++j)
+    std::ofstream outFile("data.txt");
+    for(int j = 0; j < M; ++j)
     {
         for(int i = 0; i < N; ++i)
             outFile << result[N*j + i] << " ";
