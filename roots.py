@@ -20,6 +20,14 @@ def makeDomain(R, npoints):
     x,y = meshgrid(x1, x1)
     return x + 1j*y
 
+def makePolarDomain(R, npoints):
+    theta = pi/2 * (arange(npoints) + 0.5)/npoints
+    npointsRad = (R - 1) * npoints / (pi/2)
+    r = 1 + (R - 1)*(arange(npointsRad) + 0.5)/npointsRad
+    tt,rr = meshgrid(theta,r)
+    x,y = rr*cos(tt), rr*sin(tt)
+    return x + 1j*y
+
 class MinAccumulator:
     def __init__(self, z):
         self.acc = 1000*ones(z.shape)

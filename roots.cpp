@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <limits>
 #include <iostream>
+#include <fstream>
 
 typedef std::complex<double> complex;
 
@@ -57,7 +58,7 @@ int main()
             complex zpowers[degree+1];
             for(int k = 0; k <= degree; ++k)
                 zpowers[k] = pow(z, k);
-            // Accumulate all terms; there are 2^degree of them!
+            // Find minimum absolute value of all terms; there are 2^degree of them!
             double minpoly = evaluate(0, zpowers, degree);
             // Weight of 1/|z|^degree implies z <--> 1/z symmetry
             result[N*j + i] = sqrt(minpoly / pow(abs(z),degree));
@@ -65,11 +66,12 @@ int main()
     }
 
     // Output numbers to stdout with a single thread.
+    ofstream outFile("data.txt");
     for(int j = 0; j < N; ++j)
     {
         for(int i = 0; i < N; ++i)
-            std::cout << result[N*j + i] << " ";
-        std::cout << "\n";
+            outFile << result[N*j + i] << " ";
+        outFile << "\n";
     }
 
     delete[] result;
