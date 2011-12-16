@@ -67,6 +67,11 @@ def evalCmap(cmap, F, vmin=None, vmax=None):
         vmax = amax(F)
     return cmap((F-vmin)/(vmax-vmin))
 
+def readDataFile(name):
+    f = open(name, 'rb')
+    N, M = (int(i) for i in f.readline().split())
+    return fromfile(f, dtype=float32, count=N*M).reshape(N,M)
+
 #R = 1.6
 #z = makeDomain(1.6,1000)
 #F = genfrac(7,z)
@@ -83,3 +88,4 @@ def evalCmap(cmap, F, vmin=None, vmax=None):
 #       extent=extent, interpolation='nearest')
 #imshow(F**0.01, cmap=cm.gist_heat_r, origin='lower', vmin=0.95,vmax=1.1)
 #show()
+imsh = lambda F, **a: imshow(F**0.01, cmap=cm.gist_heat_r, origin='lower', vmin=0.95,vmax=1.1, **a)
