@@ -94,43 +94,78 @@ def allRoots(coeffSet, degree):
     return collectRoots(setCartesianPower(coeffSet, degree+1))
 
 
-# Polynomial coefficients for all polys with +/-1 coeffs which also might have
-# roots in the given bounding box in the complex plane.
+# Polynomial coefficients for all polys with +/-1 coeffs which may have roots
+# in the given bounding box in the complex plane.
 #
-# TODO: Buggy?  Finds rather too many roots?  Needs more investigation.
-def polysInBound(left, bottom, right, top, degree):
-    def evalPoly(resultList, partialCoeffs, partialPoly, absBounds, zpows, n):
+# bound - list of four numbers [left, right, bottom, top] describing region of
+#         the complex plane in which to look for polynomials with roots
+# degree - polynomial degree
+# coeffSet - set of polynomial coefficients
+#
+# returns a list of tuples containing the polynomial coefficients.  The
+# ordering of coefficients is from highest power to lowest (this convention is
+# the same as the pylab polynomial functions polyval, polyder etc.
+def polysInBound(bound, degree, coeffSet=(-1,1)):
+    import mpmath
+    mpc = mpmath.iv.mpc
+    mpi = mpmath.mpi
+    # Get interval in complex plane; remap to inside unit circle if necessary
+    # so that higher z powers decay.
+    zbnd = mpc(mpi(bound[0], bound[1]), mpi(bound[2], bound[3]))
+    z0 = mean(bound[:2]) + 1j*mean(bound[2:])
+    remapped = False
+    if abs(zbnd).b > 1:
+        if abs(zbnd).a < 1:
+            raise RuntimeError('bound touches unit circle')
+        z0 = 1/z0
+        # mpmath's complex inverse operation doesn't return a tight bound.
+        # To get an approximate tight bound, let's just do a braindead
+        # sampling of the region on a regular grid, and wrap 1/region in an
+        # interval:
+        zx,zy = meshgrid(linspace(bound[0], bound[1]),
+                         linspace(bound[2], bound[3]))
+        zinvSamp = (1/(zx + 1j*zy)).flatten()
+        zbnd = mpc(mpi(min(real(zinvSamp)), max(real(zinvSamp))),
+                   mpi(min(imag(zinvSamp)), max(imag(zinvSamp))))
+        remapped = True
+    # Normalize the coefficient set so that max coeff magnitude is 1.  This
+    # doesn't change the roots and makes things simpler.
+    coeffSet = array(coeffSet)
+    coeffSet = coeffSet/max(abs(coeffSet))
+    # Precompute powers of z.  It is critical to use the power function for
+    # intervals rather than successive multiplication to avoid very
+    # pessimistic bounds.  (z**2 != z*z in interval arithmetic!)
+    n = arange(degree+1)
+    z0pows = z0**n
+    dzpowsdz = n*zbnd**(n-1)
+    dzpowsdz[0] = 0
+    # Bound on absolute value of sum of last n terms:
+    absBounds = cumsum(abs(zbnd**n)[::-1])[::-1]
+    # Recursive function traversing the tree of all polynomials, pruning away
+    # parts of the tree which cannot have zeros inside the given bound.
+    #
+    # We compute a bound for P in the complex plane by computing P(z0), and
+    # dPdz(zbnd) where zbnd is the complex interval of interest and z0 is the
+    # centre.  Using Taylor's theorem we can then estimate the complex
+    # interval P(zbnd) much more accurately than computing P(zbnd) directly,
+    # provided the function is approximately linear.
+    def evalPoly(resultList, partialCoeffs, P0, dPdz, n):
         if n == 0:
-            resultList.append(partialCoeffs)
+            coeffs = partialCoeffs
+            if not remapped:
+                coeffs = partialCoeffs[::-1]
+            resultList.append(coeffs)
         else:
             # Note > and <= are not mutually exclusive for intervals!
-            if abs(partialPoly) > absBounds[-n]:
+            if abs(P0 + dPdz*(zbnd-z0)) > absBounds[-n]:
                 pass # trim recursive branch.
             else:
-                #import pdb; pdb.set_trace()
-                evalPoly(resultList, partialCoeffs + (1,),
-                        partialPoly + zpows[-n], absBounds, zpows, n-1)
-                evalPoly(resultList, partialCoeffs + (-1,),
-                        partialPoly - zpows[-n], absBounds, zpows, n-1)
-
-    # TODO: allow general coefficient sets
-    # Compute interval in complex plane; remap to inside unit circle.
-    # TODO: Need to reverse coefficients if this is done.
-    from mpmath import iv, mpi, mpc
-    z = mpi(left, right) + 1j * mpi(bottom, top)
-    if abs(z).b > 1:
-        if abs(z).a < 1:
-            raise RuntimeError('bound touches unit circle')
-        z = 1.0/z
-    # Precompute powers of z.  It is critical to use the power function here
-    # rather than successive multiplication to avoid very pessimistic bounds.
-    # (Actually, perhaps this isn't enough to entirely avoid pessimistic
-    # bounds?)
-    zpowers = z**arange(degree+1)
-    # Bound on absolute value of sum of last n terms:
-    absBounds = cumsum(abs(zpowers)[::-1])[::-1]
+                for c in coeffSet:
+                    evalPoly(resultList, partialCoeffs + (c,),
+                             P0 + c*z0pows[-n], dPdz + c*dzpowsdz[-n], n-1)
+    # Collect results as a list of polynomial coefficients
     resultList = []
-    evalPoly(resultList, (), 0, absBounds, zpowers, degree+1)
+    evalPoly(resultList, (), 0, 0, degree+1)
     return resultList
 
 
@@ -145,23 +180,71 @@ def polysInBound(left, bottom, right, top, degree):
 # cset = (1,1j)
 # cset = rootsOfUnity(3)
 
-cset = (-1,1)
-# Low degree example because minPolyFractal sucks!  The C++ code is much
-# faster.
-deg = 8
+#-------------------------------------------
+# Basic min of all polynomials visualisation
+#cset = (-1,1)
+## Low degree example because minPolyFractal sucks!  The C++ code is much
+## faster.
+#deg = 8
+#
+#R = 2.1
+#x1 = linspace(-R,R,400)
+#x,y = meshgrid(x1, x1)
+#z = x + 1j*y
+#
+#F = minPolyFractal(deg, z, cset)
+#clf()
+#imsh(F, extent=[-R,R,-R,R])
+#
+#r = allRoots(cset, deg)
+#plot(real(r), imag(r), '.', markersize=1)
+#axis('equal')
+#xlim([-R,R])
+#ylim([-R,R])
+#show()
 
-R = 2.1
-x1 = linspace(-R,R,400)
-x,y = meshgrid(x1, x1)
-z = x + 1j*y
+#-------------------------------------------
+#clf()
+#r = allRoots((1,1j), 13)
+#plot(real(r), imag(r), '.', markersize=1)
+#axis('equal')
+#show()
 
-F = minPolyFractal(deg, z, cset)
+# Compute roots in a deep zoom
 clf()
-imsh(F, extent=[-R,R,-R,R])
+degree = 38
+coeffSet = (-1,1)
+bnd = [1.460076, 1.460176, 0.200166, 0.200266]
 
-r = allRoots(cset, deg)
-plot(real(r), imag(r), '.', markersize=1)
+#degree = 27
+#coeffSet = (1,1j)
+#bnd = [-1.2078263 , -1.20423965,  0.88100003,  0.8835998 ]
+
+bndOutlineX = array([bnd[0],bnd[1],bnd[1],bnd[0],bnd[0]])
+bndOutlineY = array([bnd[2],bnd[2],bnd[3],bnd[3],bnd[2]])
+
+bndCentre = mean(bnd[:2]) + 1j*mean(bnd[2:])
+bndRad = min(sqrt((bndOutlineX - bndCentre.real)**2 +
+                  (bndOutlineY - bndCentre.imag)**2))
+polys = polysInBound(bnd, degree, coeffSet)
+rootsToPlot = []
+for c in polys:
+    #r = roots(c)
+    r = [r for r in roots(c) if abs(r - bndCentre) < 10*bndRad]
+    rootsToPlot.append(r)
+rootsToPlot = array(rootsToPlot).flatten()
+plot(real(rootsToPlot), imag(rootsToPlot), 'k.', markersize=1)
+
+#x,y = meshgrid(linspace(bnd[0], bnd[1],200), linspace(bnd[2], bnd[3],200))
+#z = x + 1j*y
+#minAbsP = 1e10*ones(z.shape)
+#for c in polys:
+#    fmin(minAbsP, abs(polyval(c, z)), minAbsP)
+#imsh(minAbsP, extent=bnd)
+
+plot(bndOutlineX, bndOutlineY, 'k-')
 axis('equal')
-xlim([-R,R])
-ylim([-R,R])
+xlim(bnd[:2])
+ylim(bnd[2:])
+
 show()
