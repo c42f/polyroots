@@ -21,6 +21,8 @@ class RootViewWidget : public QWidget
 
         QPoint m_lastPos;
         QImage m_image;
+        QPointF m_coeff2;
+        bool m_coeffChangeMode;
         int m_degree;
         QRectF m_bbox;
 };
