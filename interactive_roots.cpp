@@ -100,7 +100,7 @@ void minPolys(float* result, int N, int M,
 #       pragma omp critical
         {
             ++linesdone;
-//            std::cout << 100.0*linesdone/M << "%   \r" << std::flush;
+            std::cout << 100.0*linesdone/M << "%   \r" << std::flush;
         }
     }
 }
@@ -177,6 +177,11 @@ void RootViewWidget::mouseMoveEvent(QMouseEvent* event)
 
 void RootViewWidget::renderImage()
 {
+    std::cout
+        << "degree = " << m_degree
+        << ", bbox = [" << m_bbox.x() << ", " << m_bbox.x() + m_bbox.width()
+        << "] x [" << m_bbox.y() << ", " << m_bbox.y() + m_bbox.height()
+        << "]\n";
     int N = size().width();
     int M = size().height();
     m_image = QImage(N, M, QImage::Format_RGB32);
@@ -189,7 +194,7 @@ void RootViewWidget::renderImage()
         for(int i = 0; i < N; ++i)
         {
             float r,g,b;
-            colormap(1 - (pow(minP[j*N + i], 0.01) - 0.95)/0.15, r,g,b);
+            colormap(1 - (pow(minP[j*N + i], 0.01) - 0.95)/0.1, r,g,b);
             pix[i] = qRgb(lround(r*255), lround(g*255), lround(b*255));
         }
     }
